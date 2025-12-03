@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Collector test results
+Collector/api-test-results/
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*~

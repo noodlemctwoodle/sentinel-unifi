@@ -1,0 +1,658 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "2.0.0.0",
+  "metadata": {
+    "title": "UniFi Network API v2 - Complete Unified Deployment",
+    "description": "Single template deploying tables, DCE, and 17 DCRs with comprehensive RawData extraction - RawData removal ready",
+    "version": "2.2.0",
+    "author": {
+      "name": "Microsoft Sentinel Community"
+    }
+  },
+  "parameters": {
+    "workspaceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Log Analytics workspace"
+      }
+    },
+    "dataCollectionEndpointName": {
+      "type": "string",
+      "defaultValue": "dce-unifi-v2",
+      "metadata": {
+        "description": "Name of the Data Collection Endpoint"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources"
+      }
+    },
+    "retentionInDays": {
+      "type": "int",
+      "defaultValue": 90,
+      "minValue": 30,
+      "maxValue": 730,
+      "metadata": {
+        "description": "Data retention in days"
+      }
+    },
+    "collectorVmResourceId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional: Resource ID of the collector VM to auto-associate DCRs (e.g., /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Compute/virtualMachines/{vm})"
+      }
+    }
+  },
+  "variables": {
+    "workspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]",
+    "dataCollectionEndpointId": "[resourceId('Microsoft.Insights/dataCollectionEndpoints', parameters('dataCollectionEndpointName'))]",
+    "tables": [
+      {
+        "name": "UniFi_Devices_CL",
+        "description": "UniFi network devices (Integration API v1)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "id", "type": "string"},
+          {"name": "macAddress", "type": "string"},
+          {"name": "ipAddress", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "model", "type": "string"},
+          {"name": "state", "type": "string"},
+          {"name": "supported", "type": "boolean"},
+          {"name": "firmwareVersion", "type": "string"},
+          {"name": "firmwareUpdatable", "type": "boolean"},
+          {"name": "features", "type": "dynamic"},
+          {"name": "interfaces", "type": "dynamic"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_Clients_CL",
+        "description": "Connected clients (Integration API v1)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "id", "type": "string"},
+          {"name": "clientType", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "connectedAt", "type": "datetime"},
+          {"name": "ipAddress", "type": "string"},
+          {"name": "macAddress", "type": "string"},
+          {"name": "uplinkDeviceId", "type": "string"},
+          {"name": "accessType", "type": "string"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_Networks_CL",
+        "description": "Network/VLAN configurations (Integration API v1)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "id", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "management", "type": "string"},
+          {"name": "enabled", "type": "boolean"},
+          {"name": "vlanId", "type": "int"},
+          {"name": "metadataOrigin", "type": "string"},
+          {"name": "metadataConfigurable", "type": "boolean"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_WiFi_CL",
+        "description": "WiFi SSID configurations (Integration API v1)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "id", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "wifiType", "type": "string"},
+          {"name": "enabled", "type": "boolean"},
+          {"name": "networkType", "type": "string"},
+          {"name": "securityType", "type": "string"},
+          {"name": "broadcastingFrequencies", "type": "dynamic"},
+          {"name": "metadataOrigin", "type": "string"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_TrafficLists_CL",
+        "description": "Traffic matching lists - firewall groups (Integration API v1)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "id", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "listType", "type": "string"},
+          {"name": "items", "type": "dynamic"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_FirewallZones_CL",
+        "description": "Firewall zones (Integration API v1)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "id", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "networkIds", "type": "dynamic"},
+          {"name": "metadataOrigin", "type": "string"},
+          {"name": "metadataConfigurable", "type": "boolean"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_ACLRules_CL",
+        "description": "Access control list rules (Integration API v1)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "id", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "ruleType", "type": "string"},
+          {"name": "enabled", "type": "boolean"},
+          {"name": "action", "type": "string"},
+          {"name": "index", "type": "int"},
+          {"name": "description", "type": "string"},
+          {"name": "metadataOrigin", "type": "string"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_RADIUSProfiles_CL",
+        "description": "RADIUS authentication profiles (Integration API v1)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "id", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "metadataOrigin", "type": "string"},
+          {"name": "metadataConfigurable", "type": "boolean"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_DeviceTags_CL",
+        "description": "Device tagging (Integration API v1)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "id", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "deviceIds", "type": "dynamic"},
+          {"name": "metadataOrigin", "type": "string"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_DPICategories_CL",
+        "description": "Deep packet inspection categories (Integration API v1)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "categoryId", "type": "int"},
+          {"name": "categoryName", "type": "string"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_DPIApplications_CL",
+        "description": "Deep packet inspection applications (Integration API v1)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "applicationId", "type": "int"},
+          {"name": "applicationName", "type": "string"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_WANs_CL",
+        "description": "WAN interfaces (Integration API v1)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "id", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_VPNServers_CL",
+        "description": "VPN servers (Integration API v1)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "id", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "vpnType", "type": "string"},
+          {"name": "enabled", "type": "boolean"},
+          {"name": "metadataOrigin", "type": "string"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_PortForward_CL",
+        "description": "Port forwarding rules (Legacy API)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "ruleId", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "enabled", "type": "boolean"},
+          {"name": "pfwd_interface", "type": "string"},
+          {"name": "fwd", "type": "string"},
+          {"name": "dst_port", "type": "string"},
+          {"name": "fwd_port", "type": "string"},
+          {"name": "proto", "type": "string"},
+          {"name": "src", "type": "string"},
+          {"name": "log", "type": "boolean"},
+          {"name": "site_id", "type": "string"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_Health_CL",
+        "description": "System health metrics (Legacy API)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "subsystem", "type": "string"},
+          {"name": "status", "type": "string"},
+          {"name": "num_user", "type": "int"},
+          {"name": "num_guest", "type": "int"},
+          {"name": "num_adopted", "type": "int"},
+          {"name": "num_disconnected", "type": "int"},
+          {"name": "num_iot", "type": "int"},
+          {"name": "tx_bytes_r", "type": "long"},
+          {"name": "rx_bytes_r", "type": "long"},
+          {"name": "num_ap", "type": "int"},
+          {"name": "num_disabled", "type": "int"},
+          {"name": "num_pending", "type": "int"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_Events_CL",
+        "description": "System events including firewall blocks/allows (Legacy API)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "eventId", "type": "string"},
+          {"name": "eventKey", "type": "string"},
+          {"name": "eventTime", "type": "long"},
+          {"name": "eventDatetime", "type": "datetime"},
+          {"name": "subsystem", "type": "string"},
+          {"name": "isNegative", "type": "boolean"},
+          {"name": "message", "type": "string"},
+          {"name": "apName", "type": "string"},
+          {"name": "apModel", "type": "string"},
+          {"name": "apMac", "type": "string"},
+          {"name": "siteId", "type": "string"},
+          {"name": "deviceType", "type": "string"},
+          {"name": "eventCategory", "type": "string"},
+          {"name": "severity", "type": "string"},
+          {"name": "deviceModel", "type": "string"},
+          {"name": "deviceName", "type": "string"},
+          {"name": "deviceDisplayName", "type": "string"},
+          {"name": "versionFrom", "type": "string"},
+          {"name": "versionTo", "type": "string"},
+          {"name": "channelFrom", "type": "string"},
+          {"name": "channelTo", "type": "string"},
+          {"name": "radioFrom", "type": "string"},
+          {"name": "radioTo", "type": "string"},
+          {"name": "userMac", "type": "string"},
+          {"name": "gatewayMac", "type": "string"},
+          {"name": "gatewayName", "type": "string"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      },
+      {
+        "name": "UniFi_Alarms_CL",
+        "description": "Security alarms and IDS/IPS detections (Legacy API)",
+        "columns": [
+          {"name": "TimeGenerated", "type": "datetime"},
+          {"name": "CollectorSite", "type": "string"},
+          {"name": "ControllerIP", "type": "string"},
+          {"name": "RecordType", "type": "string"},
+          {"name": "alarmId", "type": "string"},
+          {"name": "alarmKey", "type": "string"},
+          {"name": "alarmTime", "type": "long"},
+          {"name": "alarmDatetime", "type": "datetime"},
+          {"name": "subsystem", "type": "string"},
+          {"name": "isNegative", "type": "boolean"},
+          {"name": "message", "type": "string"},
+          {"name": "occurs", "type": "int"},
+          {"name": "archived", "type": "boolean"},
+          {"name": "apName", "type": "string"},
+          {"name": "apModel", "type": "string"},
+          {"name": "apMac", "type": "string"},
+          {"name": "siteId", "type": "string"},
+          {"name": "deviceType", "type": "string"},
+          {"name": "eventCategory", "type": "string"},
+          {"name": "severity", "type": "string"},
+          {"name": "deviceDisplayName", "type": "string"},
+          {"name": "RawData", "type": "dynamic"}
+        ]
+      }
+    ],
+    "dcrConfigs": [
+      {
+        "name": "DCR-UniFi-Devices",
+        "tableName": "UniFi_Devices_CL",
+        "streamName": "Custom-UniFi_Devices_CL",
+        "filePattern": "/var/log/unifi/devices_*.json",
+        "dataSourceName": "devices-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), supported = tobool(supported), firmwareUpdatable = tobool(firmwareUpdatable), features = parse_json(tostring(features)), interfaces = parse_json(tostring(interfaces)), RawData = parse_json(tostring(RawData)) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, id, macAddress, ipAddress, name, model, state, supported, firmwareVersion, firmwareUpdatable, features, interfaces, RawData"
+      },
+      {
+        "name": "DCR-UniFi-Clients",
+        "tableName": "UniFi_Clients_CL",
+        "streamName": "Custom-UniFi_Clients_CL",
+        "filePattern": "/var/log/unifi/clients_*.json",
+        "dataSourceName": "clients-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), connectedAt = todatetime(connectedAt), RawData = parse_json(tostring(RawData)) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, id, clientType, name, connectedAt, ipAddress, macAddress, uplinkDeviceId, accessType, RawData"
+      },
+      {
+        "name": "DCR-UniFi-Networks",
+        "tableName": "UniFi_Networks_CL",
+        "streamName": "Custom-UniFi_Networks_CL",
+        "filePattern": "/var/log/unifi/networks_*.json",
+        "dataSourceName": "networks-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), enabled = tobool(enabled), vlanId = toint(vlanId), metadataConfigurable = tobool(metadataConfigurable), RawData = parse_json(tostring(RawData)) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, id, name, management, enabled, vlanId, metadataOrigin, metadataConfigurable, RawData"
+      },
+      {
+        "name": "DCR-UniFi-WiFi",
+        "tableName": "UniFi_WiFi_CL",
+        "streamName": "Custom-UniFi_WiFi_CL",
+        "filePattern": "/var/log/unifi/wifi_*.json",
+        "dataSourceName": "wifi-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), enabled = tobool(enabled), broadcastingFrequencies = parse_json(tostring(broadcastingFrequencies)), RawData = parse_json(tostring(RawData)) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, id, name, wifiType, enabled, networkType, securityType, broadcastingFrequencies, metadataOrigin, RawData"
+      },
+      {
+        "name": "DCR-UniFi-TrafficLists",
+        "tableName": "UniFi_TrafficLists_CL",
+        "streamName": "Custom-UniFi_TrafficLists_CL",
+        "filePattern": "/var/log/unifi/traffic-lists_*.json",
+        "dataSourceName": "traffic-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), items = parse_json(tostring(items)), RawData = parse_json(tostring(RawData)) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, id, name, listType, items, RawData"
+      },
+      {
+        "name": "DCR-UniFi-FirewallZones",
+        "tableName": "UniFi_FirewallZones_CL",
+        "streamName": "Custom-UniFi_FirewallZones_CL",
+        "filePattern": "/var/log/unifi/firewall-zones_*.json",
+        "dataSourceName": "fw-zones-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), networkIds = parse_json(tostring(networkIds)), metadataConfigurable = tobool(metadataConfigurable), RawData = parse_json(tostring(RawData)) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, id, name, networkIds, metadataOrigin, metadataConfigurable, RawData"
+      },
+      {
+        "name": "DCR-UniFi-ACLRules",
+        "tableName": "UniFi_ACLRules_CL",
+        "streamName": "Custom-UniFi_ACLRules_CL",
+        "filePattern": "/var/log/unifi/acl-rules_*.json",
+        "dataSourceName": "acl-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), enabled = tobool(enabled), index = toint(index), RawData = parse_json(tostring(RawData)) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, id, name, ruleType, enabled, action, index, description, metadataOrigin, RawData"
+      },
+      {
+        "name": "DCR-UniFi-RADIUSProfiles",
+        "tableName": "UniFi_RADIUSProfiles_CL",
+        "streamName": "Custom-UniFi_RADIUSProfiles_CL",
+        "filePattern": "/var/log/unifi/radius-profiles_*.json",
+        "dataSourceName": "radius-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), metadataConfigurable = tobool(metadataConfigurable), RawData = parse_json(tostring(RawData)) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, id, name, metadataOrigin, metadataConfigurable, RawData"
+      },
+      {
+        "name": "DCR-UniFi-DeviceTags",
+        "tableName": "UniFi_DeviceTags_CL",
+        "streamName": "Custom-UniFi_DeviceTags_CL",
+        "filePattern": "/var/log/unifi/device-tags_*.json",
+        "dataSourceName": "tags-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), deviceIds = parse_json(tostring(deviceIds)), RawData = parse_json(tostring(RawData)) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, id, name, deviceIds, metadataOrigin, RawData"
+      },
+      {
+        "name": "DCR-UniFi-DPICategories",
+        "tableName": "UniFi_DPICategories_CL",
+        "streamName": "Custom-UniFi_DPICategories_CL",
+        "filePattern": "/var/log/unifi/dpi-categories_*.json",
+        "dataSourceName": "dpi-cat-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), categoryId = toint(categoryId), RawData = parse_json(tostring(RawData)) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, categoryId, categoryName, RawData"
+      },
+      {
+        "name": "DCR-UniFi-DPIApplications",
+        "tableName": "UniFi_DPIApplications_CL",
+        "streamName": "Custom-UniFi_DPIApplications_CL",
+        "filePattern": "/var/log/unifi/dpi-applications_*.json",
+        "dataSourceName": "dpi-app-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), applicationId = toint(applicationId), RawData = parse_json(tostring(RawData)) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, applicationId, applicationName, RawData"
+      },
+      {
+        "name": "DCR-UniFi-WANs",
+        "tableName": "UniFi_WANs_CL",
+        "streamName": "Custom-UniFi_WANs_CL",
+        "filePattern": "/var/log/unifi/wans_*.json",
+        "dataSourceName": "wans-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), RawData = parse_json(tostring(RawData)) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, id, name, RawData"
+      },
+      {
+        "name": "DCR-UniFi-VPNServers",
+        "tableName": "UniFi_VPNServers_CL",
+        "streamName": "Custom-UniFi_VPNServers_CL",
+        "filePattern": "/var/log/unifi/vpn-servers_*.json",
+        "dataSourceName": "vpn-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), enabled = tobool(enabled), RawData = parse_json(tostring(RawData)) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, id, name, vpnType, enabled, metadataOrigin, RawData"
+      },
+      {
+        "name": "DCR-UniFi-PortForward",
+        "tableName": "UniFi_PortForward_CL",
+        "streamName": "Custom-UniFi_PortForward_CL",
+        "filePattern": "/var/log/unifi/port-forward_*.json",
+        "dataSourceName": "portfwd-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), enabled = tobool(enabled), RawData = parse_json(tostring(RawData)) | extend src = tostring(RawData.src), log = tobool(RawData.log), site_id = tostring(RawData.site_id) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, ruleId, name, enabled, pfwd_interface, fwd, dst_port, fwd_port, proto, src, log, site_id, RawData"
+      },
+      {
+        "name": "DCR-UniFi-Health",
+        "tableName": "UniFi_Health_CL",
+        "streamName": "Custom-UniFi_Health_CL",
+        "filePattern": "/var/log/unifi/health_*.json",
+        "dataSourceName": "health-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), num_user = toint(num_user), num_guest = toint(num_guest), num_adopted = toint(num_adopted), num_disconnected = toint(num_disconnected), RawData = parse_json(tostring(RawData)) | extend num_iot = toint(RawData['num_iot']), tx_bytes_r = tolong(RawData['tx_bytes-r']), rx_bytes_r = tolong(RawData['rx_bytes-r']), num_ap = toint(RawData.num_ap), num_disabled = toint(RawData.num_disabled), num_pending = toint(RawData.num_pending) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, subsystem, status, num_user, num_guest, num_adopted, num_disconnected, num_iot, tx_bytes_r, rx_bytes_r, num_ap, num_disabled, num_pending, RawData"
+      },
+      {
+        "name": "DCR-UniFi-Events",
+        "tableName": "UniFi_Events_CL",
+        "streamName": "Custom-UniFi_Events_CL",
+        "filePattern": "/var/log/unifi/events_*.json",
+        "dataSourceName": "events-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), eventTime = tolong(eventTime), eventDatetime = todatetime(eventDatetime), isNegative = tobool(isNegative), RawData = parse_json(tostring(RawData)) | extend deviceType = case(eventKey startswith 'EVT_AP_', 'AccessPoint', eventKey startswith 'EVT_SW_', 'Switch', eventKey startswith 'EVT_DM_', 'DeviceManager', eventKey startswith 'EVT_GW_', 'Gateway', eventKey startswith 'EVT_WU_', 'WirelessUser', eventKey startswith 'EVT_LU_', 'WiredUser', 'Unknown') | extend eventCategory = case(eventKey contains 'Upgrade', 'FirmwareUpgrade', eventKey contains 'Readopted' or eventKey contains 'Adopted', 'DeviceAdoption', eventKey contains 'Roam', 'ClientRoaming', eventKey contains 'Connect' or eventKey contains 'Disconnect', 'ClientConnection', eventKey contains 'HostKeyMismatch', 'SecurityError', eventKey contains 'Offline' or eventKey contains 'Online', 'DeviceStatus', 'General') | extend severity = case(isNegative == true, 'High', eventKey contains 'HostKeyMismatch', 'High', eventKey contains 'Offline' or eventKey contains 'Disconnect', 'Medium', eventKey contains 'Upgrade', 'Informational', eventKey contains 'Readopted', 'Low', 'Informational') | extend deviceModel = case(isnotempty(RawData.sw_model), tostring(RawData.sw_model), isnotempty(RawData.ap_model), tostring(RawData.ap_model), isnotempty(RawData.dm_model), tostring(RawData.dm_model), ''), deviceName = case(isnotempty(RawData.sw_name), tostring(RawData.sw_name), isnotempty(RawData.ap_name), tostring(RawData.ap_name), isnotempty(RawData.dm_name), tostring(RawData.dm_name), ''), deviceDisplayName = case(isnotempty(RawData.sw_displayName), tostring(RawData.sw_displayName), isnotempty(RawData.ap_displayName), tostring(RawData.ap_displayName), isnotempty(RawData.dm_displayName), tostring(RawData.dm_displayName), isnotempty(RawData.gw_displayName), tostring(RawData.gw_displayName), ''), versionFrom = tostring(RawData.version_from), versionTo = tostring(RawData.version_to), channelFrom = tostring(RawData.channel_from), channelTo = tostring(RawData.channel_to), radioFrom = tostring(RawData.radio_from), radioTo = tostring(RawData.radio_to), userMac = tostring(RawData.user), gatewayMac = tostring(RawData.gw), gatewayName = tostring(RawData.gw_displayName) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, eventId, eventKey, eventTime, eventDatetime, subsystem, isNegative, message, apName, apModel, apMac, siteId, deviceType, eventCategory, severity, deviceModel, deviceName, deviceDisplayName, versionFrom, versionTo, channelFrom, channelTo, radioFrom, radioTo, userMac, gatewayMac, gatewayName, RawData"
+      },
+      {
+        "name": "DCR-UniFi-Alarms",
+        "tableName": "UniFi_Alarms_CL",
+        "streamName": "Custom-UniFi_Alarms_CL",
+        "filePattern": "/var/log/unifi/alarms_*.json",
+        "dataSourceName": "alarms-logs",
+        "transformKql": "source | extend TimeGenerated = todatetime(TimeGenerated), alarmTime = tolong(alarmTime), alarmDatetime = todatetime(alarmDatetime), isNegative = tobool(isNegative), occurs = toint(occurs), archived = tobool(archived), RawData = parse_json(tostring(RawData)) | extend deviceType = case(alarmKey startswith 'EVT_AP_', 'AccessPoint', alarmKey startswith 'EVT_SW_', 'Switch', alarmKey startswith 'EVT_DM_', 'DeviceManager', alarmKey startswith 'EVT_GW_', 'Gateway', alarmKey startswith 'EVT_WU_', 'WirelessUser', alarmKey startswith 'EVT_LU_', 'WiredUser', 'Unknown') | extend eventCategory = case(alarmKey contains 'Upgrade', 'FirmwareUpgrade', alarmKey contains 'Readopted' or alarmKey contains 'Adopted', 'DeviceAdoption', alarmKey contains 'Roam', 'ClientRoaming', alarmKey contains 'Connect' or alarmKey contains 'Disconnect', 'ClientConnection', alarmKey contains 'HostKeyMismatch', 'SecurityError', alarmKey contains 'Offline' or alarmKey contains 'Online', 'DeviceStatus', 'General') | extend severity = case(isNegative == true, 'Critical', alarmKey contains 'HostKeyMismatch', 'High', occurs > 10, 'High', occurs > 5, 'Medium', archived == true, 'Low', 'Medium') | extend deviceDisplayName = tostring(RawData.ap_displayName) | project TimeGenerated, CollectorSite, ControllerIP, RecordType, alarmId, alarmKey, alarmTime, alarmDatetime, subsystem, isNegative, message, occurs, archived, apName, apModel, apMac, siteId, deviceType, eventCategory, severity, deviceDisplayName, RawData"
+      }
+    ]
+  },
+  "resources": [
+    {
+      "copy": {
+        "name": "tableCopy",
+        "count": "[length(variables('tables'))]"
+      },
+      "type": "Microsoft.OperationalInsights/workspaces/tables",
+      "apiVersion": "2022-10-01",
+      "name": "[concat(parameters('workspaceName'), '/', variables('tables')[copyIndex()].name)]",
+      "properties": {
+        "schema": {
+          "name": "[variables('tables')[copyIndex()].name]",
+          "displayName": "[variables('tables')[copyIndex()].description]",
+          "description": "[variables('tables')[copyIndex()].description]",
+          "columns": "[variables('tables')[copyIndex()].columns]"
+        },
+        "retentionInDays": "[parameters('retentionInDays')]",
+        "plan": "Analytics"
+      }
+    },
+    {
+      "type": "Microsoft.Insights/dataCollectionEndpoints",
+      "apiVersion": "2022-06-01",
+      "name": "[parameters('dataCollectionEndpointName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "tableCopy"
+      ],
+      "kind": "Linux",
+      "properties": {
+        "description": "Data Collection Endpoint for UniFi Network API v2",
+        "networkAcls": {
+          "publicNetworkAccess": "Enabled"
+        }
+      }
+    },
+    {
+      "copy": {
+        "name": "dcrCopy",
+        "count": "[length(variables('dcrConfigs'))]"
+      },
+      "type": "Microsoft.Insights/dataCollectionRules",
+      "apiVersion": "2022-06-01",
+      "name": "[variables('dcrConfigs')[copyIndex()].name]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/dataCollectionEndpoints', parameters('dataCollectionEndpointName'))]",
+        "tableCopy"
+      ],
+      "kind": "Linux",
+      "properties": {
+        "description": "[concat('DCR for ', variables('dcrConfigs')[copyIndex()].tableName)]",
+        "dataCollectionEndpointId": "[variables('dataCollectionEndpointId')]",
+        "streamDeclarations": {
+          "[variables('dcrConfigs')[copyIndex()].streamName]": {
+            "columns": "[reference(resourceId('Microsoft.OperationalInsights/workspaces/tables', parameters('workspaceName'), variables('dcrConfigs')[copyIndex()].tableName), '2022-10-01').schema.columns]"
+          }
+        },
+        "dataSources": {
+          "logFiles": [
+            {
+              "name": "[variables('dcrConfigs')[copyIndex()].dataSourceName]",
+              "streams": [
+                "[variables('dcrConfigs')[copyIndex()].streamName]"
+              ],
+              "filePatterns": [
+                "[variables('dcrConfigs')[copyIndex()].filePattern]"
+              ],
+              "format": "json"
+            }
+          ]
+        },
+        "destinations": {
+          "logAnalytics": [
+            {
+              "workspaceResourceId": "[variables('workspaceResourceId')]",
+              "name": "WorkspaceDestination"
+            }
+          ]
+        },
+        "dataFlows": [
+          {
+            "streams": [
+              "[variables('dcrConfigs')[copyIndex()].streamName]"
+            ],
+            "destinations": [
+              "WorkspaceDestination"
+            ],
+            "transformKql": "[variables('dcrConfigs')[copyIndex()].transformKql]",
+            "outputStream": "[variables('dcrConfigs')[copyIndex()].streamName]"
+          }
+        ]
+      }
+    },
+    {
+      "condition": "[not(equals(parameters('collectorVmResourceId'), ''))]",
+      "copy": {
+        "name": "dcrAssociationCopy",
+        "count": "[length(variables('dcrConfigs'))]"
+      },
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "[concat('deploy-dcra-', variables('dcrConfigs')[copyIndex()].name)]",
+      "resourceGroup": "[split(parameters('collectorVmResourceId'), '/')[4]]",
+      "dependsOn": [
+        "dcrCopy"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": [
+            {
+              "type": "Microsoft.Insights/dataCollectionRuleAssociations",
+              "apiVersion": "2022-06-01",
+              "scope": "[parameters('collectorVmResourceId')]",
+              "name": "[concat('unifi-dcra-', copyIndex())]",
+              "properties": {
+                "dataCollectionRuleId": "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrConfigs')[copyIndex()].name)]"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "dataCollectionEndpointId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Insights/dataCollectionEndpoints', parameters('dataCollectionEndpointName'))]"
+    },
+    "tablesCreated": {
+      "type": "int",
+      "value": "[length(variables('tables'))]"
+    },
+    "dcrCount": {
+      "type": "int",
+      "value": "[length(variables('dcrConfigs'))]"
+    }
+  }
+}
