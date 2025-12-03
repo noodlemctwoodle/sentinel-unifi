@@ -428,7 +428,7 @@ jq '.data[].purpose' ./api-test-results/v1_networks.json | sort -u
 
 ### Data Volume Estimation
 
-Use record counts to estimate Sentinel ingestion costs:
+Use record counts to estimate data ingestion volume:
 
 ```bash
 # Sum all record counts
@@ -442,8 +442,10 @@ done | awk '{sum+=$2} END {print "Total: " sum " records per collection cycle"}'
 - 100 total records per cycle
 - 12 collections per hour (5min interval)
 - 1,200 records/hour × 24 hours = 28,800 records/day
-- Average record size: 2 KB
-- Daily ingestion: ~56 MB/day
+- Average record size: ~2 KB
+- Estimated daily ingestion: ~56 MB/day
+
+**Note:** Use this volume estimate to plan your Azure Log Analytics deployment. See the main [Performance Benchmarks](../../README.md#performance-benchmarks) for typical data volumes by network size.
 
 ### Troubleshooting Collector Issues
 

@@ -405,20 +405,29 @@ For high-volume environments (200+ devices):
 
 See [TRANSFORMATIONS.md](TRANSFORMATIONS.md) for optimization strategies.
 
-## Cost Estimation
+## Cost Considerations
 
-DCR and table costs are based on data ingestion volume:
+Costs are based on Azure Log Analytics data ingestion and retention:
 
-| Component | Pricing Model | Typical Cost |
-|-----------|--------------|--------------|
-| Log Analytics Ingestion | $2.50/GB (first 5GB free/month) | $5-$200/month |
-| Log Analytics Retention | $0.10/GB/month (90 days) | $1-$20/month |
-| DCRs | Free | $0 |
-| Data Processing | Free (basic transformations) | $0 |
+| Component | Pricing Model |
+|-----------|---------------|
+| Log Analytics Ingestion | Pay-per-GB ingested |
+| Log Analytics Retention | Pay-per-GB per month |
+| Data Collection Rules | No additional charge |
+| Data Transformations | No additional charge for basic transformations |
 
-**Total Estimated Cost:** $6-$220/month depending on network size.
+**Important Notes:**
 
-See [../README.md](../README.md#performance-benchmarks) for detailed cost breakdowns by network size.
+- Pricing varies significantly by Azure region
+- Enterprise agreements and commitment tiers may reduce costs
+- Free tier allowances may apply to your subscription
+- Costs scale with network size and collection frequency
+
+**Cost Estimation:**
+
+- Consult the [Azure Pricing Calculator](https://azure.microsoft.com/en-us/pricing/calculator/) for current rates
+- See [Performance Benchmarks](../README.md#performance-benchmarks) for expected data volumes
+- Monitor actual ingestion in Azure Portal to track costs
 
 ## Additional Resources
 

@@ -480,14 +480,16 @@ union UniFi_*_CL
 
 ## Performance Benchmarks
 
-Rough data volumes (based on network size):
+Expected data volumes (based on network size):
 
-| Network Size | Devices | Daily Ingestion | Monthly Cost (approx) |
-|--------------|---------|-----------------|------------------------|
-| Small (1-10 devices) | 10 | ~50 MB | $5 |
-| Medium (10-50 devices) | 50 | ~200 MB | $20 |
-| Large (50-200 devices) | 200 | ~800 MB | $80 |
-| Enterprise (200+ devices) | 500+ | ~2 GB | $200+ |
+| Network Size | Devices | Daily Ingestion |
+|--------------|---------|-----------------|
+| Small (1-10 devices) | 10 | ~50 MB |
+| Medium (10-50 devices) | 50 | ~200 MB |
+| Large (50-200 devices) | 200 | ~800 MB |
+| Enterprise (200+ devices) | 500+ | ~2 GB |
+
+**Note:** Azure Log Analytics costs vary by region, commitment tier, and enterprise agreements. Consult the [Azure Pricing Calculator](https://azure.microsoft.com/en-us/pricing/calculator/) for current pricing in your region.
 
 ## Reporting Issues
 
